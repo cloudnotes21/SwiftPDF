@@ -1,3 +1,7 @@
 pyTelegramBotAPI
 PyMuPDF
 Pillow
+pytesseract
+realesrgan
+torch
+torchvision
