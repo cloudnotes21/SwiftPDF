@@ -66,20 +66,29 @@ def apply_filter_and_send(m):
     session = user_sessions.get(sid)
     choice = m.text
     photos = session.get('photos', [])
-    if not photos or session.get('state')!='awaiting_filter':
+    if not photos or session.get('state') != 'awaiting_filter':
         return
 
     images = []
     for fid in photos:
         file = bot.get_file(fid)
         downloaded = bot.download_file(file.file_path)
-        img = Image.open(BytesIO(downloaded)).convert('RGB')
+        try:
+            img = Image.open(BytesIO(downloaded)).convert('RGB')
+        except:
+            bot.send_message(sid, "⚠️ Failed to open one of the images. Skipping.")
+            continue
+
         if choice == '🖤 Black & White':
             img = img.convert('L').convert('RGB')
         else:
             enhancer = ImageEnhance.Contrast(img)
             img = enhancer.enhance(1.5)
         images.append(img)
+
+    if not images:
+        bot.send_message(sid, "❗ No valid images to convert.", reply_markup=main_menu())
+        return
 
     pdf_io = BytesIO()
     images[0].save(pdf_io, format='PDF', save_all=True, append_images=images[1:])
@@ -105,7 +114,6 @@ def extract_images(m):
 
     bot.send_message(sid, "🔍 Extracting images...")
     doc = fitz.open(pdf_path)
-    image_paths = []
     for page_index in range(len(doc)):
         for img_index, img in enumerate(doc.get_page_images(page_index)):
             xref = img[0]
