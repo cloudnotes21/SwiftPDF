@@ -6,15 +6,26 @@ import telebot
 from telebot import types
 from telebot.types import InputFile
 
-# OCR
 import pytesseract
-
-# AI Upscale
 import torch
 from realesrgan import RealESRGAN
 
+# ---- Google Drive download for model weights ----
+def download_model():
+    """
+    Downloads RealESRGAN_x4.pth model weights from your Google Drive if not already present.
+    """
+    import gdown
+    url = 'https://drive.google.com/uc?id=1lFEmtBA9XxscD4s93WG7tZZ5mJgdAIXO'
+    output = 'RealESRGAN_x4.pth'
+    if not os.path.exists(output):
+        print("Downloading RealESRGAN model weights from Google Drive...")
+        gdown.download(url, output, quiet=False)
+    else:
+        print("Model already downloaded.")
+
+# ---- Telegram Bot ----
 API_TOKEN = 'YOUR_BOT_TOKEN_HERE'  # <-- REPLACE with your Telegram Bot Token!
-ADMIN_ID = 1973627200  # Optional
 
 bot = telebot.TeleBot(API_TOKEN)
 user_sessions = {}
@@ -178,7 +189,6 @@ def enhance_images_simple(message):
             enhanced.save(output, format='JPEG')
             output.seek(0)
             bot.send_photo(cid, output, caption="🔼 Simple 2x Upscaled Image")
-            # Store for download
             session['processed_images'].append(output.getvalue())
         except Exception as e:
             bot.send_message(cid, f"⚠️ Error enhancing image: {e}")
@@ -191,6 +201,9 @@ def enhance_images_ai(message):
     if not session or not session['images']:
         bot.send_message(cid, "❗ No images to enhance.", reply_markup=main_menu())
         return
+
+    # Download model from Google Drive if not present
+    download_model()
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     try:
@@ -211,7 +224,6 @@ def enhance_images_ai(message):
             sr_image.save(output, format='JPEG')
             output.seek(0)
             bot.send_photo(cid, output, caption="✨ AI Enhanced (Real-ESRGAN)")
-            # Store for download
             session['processed_images'].append(output.getvalue())
         except Exception as e:
             bot.send_message(cid, f"⚠️ Error enhancing image: {e}")
