@@ -1,6 +1,6 @@
 import os
 from io import BytesIO
-from PIL import Image, ImageEnhance
+from PIL import Image
 from PyPDF2 import PdfReader
 import telebot
 from telebot import types
@@ -50,21 +50,8 @@ def build_pdf(m):
         bot.send_message(sid, "❗ No photos to convert.", reply_markup=main_menu(bool(session.get('pdf'))))
         return
 
-    session['state'] = 'awaiting_filter'
-    markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
-    markup.row('🖤 Black & White', '✨ Contrast')
-    bot.send_message(sid, "🎨 Choose a filter:", reply_markup=markup)
-
-@bot.message_handler(func=lambda m: m.text in ['🖤 Black & White', '✨ Contrast'])
-def apply_filter_and_send(m):
-    sid = m.from_user.id
-    session = user_sessions.get(sid)
-    photos = session.get('photos', [])
-    if not photos or session.get('state') != 'awaiting_filter':
-        return
-
     images = []
-    for fid in photos:
+    for fid in session['photos']:
         file_info = bot.get_file(fid)
         file_data = bot.download_file(file_info.file_path)
         try:
@@ -72,13 +59,6 @@ def apply_filter_and_send(m):
         except Exception as e:
             bot.send_message(sid, f"❗ Error reading an image: {e}")
             continue
-
-        if m.text == '🖤 Black & White':
-            img = img.convert('L').convert('RGB')
-        elif m.text == '✨ Contrast':
-            enhancer = ImageEnhance.Contrast(img)
-            img = enhancer.enhance(1.5)
-
         images.append(img)
 
     if not images:
@@ -91,7 +71,6 @@ def apply_filter_and_send(m):
 
     bot.send_document(sid, pdf_buffer, caption="📄 Here is your PDF!", reply_markup=main_menu(pdf_received=bool(session.get('pdf'))))
     session['photos'] = []
-    session.pop('state', None)
 
 @bot.message_handler(func=lambda m: m.text == '📂 Extract Images')
 def extract_images(m):
