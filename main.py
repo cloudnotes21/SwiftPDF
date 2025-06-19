@@ -4,6 +4,7 @@ import fitz  # PyMuPDF
 from PIL import Image
 import telebot
 from telebot import types
+from telebot.types import InputFile
 
 API_TOKEN = '8047121156:AAERsQie1NWmWw3VAlQVMZ0WZz4nDrJ5S8I'
 ADMIN_ID = 1973627200  # Optional, remove if not needed
@@ -75,9 +76,10 @@ def generate_pdf(message):
     output.seek(0)
 
     try:
+        input_file = InputFile(output, "converted.pdf")
         bot.send_document(
             cid,
-            types.InputFile(output, filename="converted.pdf"),
+            input_file,
             caption="📄 Your PDF is ready!"
         )
     except Exception as e:
