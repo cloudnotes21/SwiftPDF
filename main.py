@@ -73,7 +73,7 @@ def generate_pdf(message):
     images[0].save(output, format='PDF', save_all=True, append_images=images[1:])
     output.seek(0)
 
-    bot.send_document(cid, output, caption="📄 Your PDF is ready!")
+    bot.send_document(cid, types.InputFile(output, filename="converted.pdf"), caption="📄 Your PDF is ready!")
     session['images'] = []
 
 @bot.message_handler(func=lambda m: m.text == '📂 Extract Images')
