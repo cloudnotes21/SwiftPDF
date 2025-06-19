@@ -6,8 +6,15 @@ import telebot
 from telebot import types
 from telebot.types import InputFile
 
-API_TOKEN = '8047121156:AAERsQie1NWmWw3VAlQVMZ0WZz4nDrJ5S8I'
-ADMIN_ID = 1973627200  # Optional, remove if not needed
+# OCR
+import pytesseract
+
+# AI Upscale
+import torch
+from realesrgan import RealESRGAN
+
+API_TOKEN = 'YOUR_BOT_TOKEN_HERE'  # <-- REPLACE with your Telegram Bot Token!
+ADMIN_ID = 1973627200  # Optional
 
 bot = telebot.TeleBot(API_TOKEN)
 user_sessions = {}
@@ -17,6 +24,9 @@ def main_menu(pdf_received=False):
     markup.row('✅ Done')
     if pdf_received:
         markup.row('📂 Extract Images')
+    markup.row('📝 Extract Text from Images')
+    markup.row('🔼 Enhance Images (Simple)')
+    markup.row('✨ Enhance Images (AI)')
     return markup
 
 @bot.message_handler(commands=['start'])
@@ -24,7 +34,10 @@ def start_bot(message):
     user_sessions[message.chat.id] = {'images': [], 'pdf_file_id': None}
     bot.send_message(message.chat.id,
         "👋 Send images (photo or image document) to create PDF.\n"
-        "Or send a PDF to extract images.",
+        "Or send a PDF to extract images.\n\n"
+        "Features:\n"
+        "• OCR (extract text from images)\n"
+        "• Simple and AI image upscaling\n",
         reply_markup=main_menu()
     )
 
@@ -117,5 +130,84 @@ def extract_images_from_pdf(message):
         session['pdf_file_id'] = None
     except Exception as e:
         bot.send_message(cid, f"❌ Error: {e}")
+
+@bot.message_handler(func=lambda m: m.text == '📝 Extract Text from Images')
+def extract_text_from_images(message):
+    cid = message.chat.id
+    session = user_sessions.get(cid)
+    if not session or not session['images']:
+        bot.send_message(cid, "❗ No images to extract text from.", reply_markup=main_menu())
+        return
+
+    texts = []
+    for file_id in session['images']:
+        file_info = bot.get_file(file_id)
+        file_data = bot.download_file(file_info.file_path)
+        try:
+            image = Image.open(BytesIO(file_data))
+            text = pytesseract.image_to_string(image)
+            texts.append(text.strip())
+        except Exception as e:
+            bot.send_message(cid, f"⚠️ Error processing image: {e}")
+
+    if texts:
+        all_text = "\n\n---\n\n".join([txt if txt else "(no text found)" for txt in texts])
+        bot.send_message(cid, f"📝 Extracted Text:\n{all_text[:4000]}")
+    else:
+        bot.send_message(cid, "❗ No text found in images.")
+
+@bot.message_handler(func=lambda m: m.text == '🔼 Enhance Images (Simple)')
+def enhance_images_simple(message):
+    cid = message.chat.id
+    session = user_sessions.get(cid)
+    if not session or not session['images']:
+        bot.send_message(cid, "❗ No images to enhance.", reply_markup=main_menu())
+        return
+
+    for file_id in session['images']:
+        file_info = bot.get_file(file_id)
+        file_data = bot.download_file(file_info.file_path)
+        try:
+            image = Image.open(BytesIO(file_data))
+            new_size = (image.width * 2, image.height * 2)
+            enhanced = image.resize(new_size, Image.LANCZOS)
+            output = BytesIO()
+            enhanced.save(output, format='JPEG')
+            output.seek(0)
+            bot.send_photo(cid, output, caption="🔼 Simple 2x Upscaled Image")
+        except Exception as e:
+            bot.send_message(cid, f"⚠️ Error enhancing image: {e}")
+    bot.send_message(cid, "✅ All images enhanced! You can now convert them to PDF or extract text.", reply_markup=main_menu())
+
+@bot.message_handler(func=lambda m: m.text == '✨ Enhance Images (AI)')
+def enhance_images_ai(message):
+    cid = message.chat.id
+    session = user_sessions.get(cid)
+    if not session or not session['images']:
+        bot.send_message(cid, "❗ No images to enhance.", reply_markup=main_menu())
+        return
+
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    try:
+        # Will auto-download weights on first use
+        model = RealESRGAN(device, scale=4)
+        model.load_weights('RealESRGAN_x4.pth')
+    except Exception as e:
+        bot.send_message(cid, f"❌ Model load error: {e}")
+        return
+
+    for file_id in session['images']:
+        file_info = bot.get_file(file_id)
+        file_data = bot.download_file(file_info.file_path)
+        try:
+            image = Image.open(BytesIO(file_data)).convert("RGB")
+            sr_image = model.predict(image)
+            output = BytesIO()
+            sr_image.save(output, format='JPEG')
+            output.seek(0)
+            bot.send_photo(cid, output, caption="✨ AI Enhanced (Real-ESRGAN)")
+        except Exception as e:
+            bot.send_message(cid, f"⚠️ Error enhancing image: {e}")
+    bot.send_message(cid, "✅ All images enhanced with AI!", reply_markup=main_menu())
 
 bot.infinity_polling()
