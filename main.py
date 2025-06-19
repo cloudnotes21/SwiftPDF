@@ -5,7 +5,7 @@ from PIL import Image
 import telebot
 from telebot import types
 
-API_TOKEN = 'YOUR_API_TOKEN'
+API_TOKEN = '8047121156:AAERsQie1NWmWw3VAlQVMZ0WZz4nDrJ5S8I'
 ADMIN_ID = 1973627200  # Optional, remove if not needed
 
 bot = telebot.TeleBot(API_TOKEN)
