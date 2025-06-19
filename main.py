@@ -25,7 +25,7 @@ def download_model():
         print("Model already downloaded.")
 
 # ---- Telegram Bot ----
-API_TOKEN = 'YOUR_BOT_TOKEN_HERE'  # <-- REPLACE with your Telegram Bot Token!
+API_TOKEN = '8047121156:AAERsQie1NWmWw3VAlQVMZ0WZz4nDrJ5S8I'  # <-- REPLACE with your Telegram Bot Token!
 
 bot = telebot.TeleBot(API_TOKEN)
 user_sessions = {}
