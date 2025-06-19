@@ -21,30 +21,31 @@ user_sessions = {}
 
 def main_menu(pdf_received=False):
     markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
-    markup.row('✅ Done')
+    markup.row('✅ Done (Create PDF)')
     if pdf_received:
-        markup.row('📂 Extract Images')
-    markup.row('📝 Extract Text from Images')
-    markup.row('🔼 Enhance Images (Simple)')
-    markup.row('✨ Enhance Images (AI)')
+        markup.row('📂 Extract Images from PDF')
+    markup.row('📝 OCR Images')
+    markup.row('🔼 Simple Upscale Images')
+    markup.row('✨ AI Upscale Images')
+    markup.row('🖼️ Download Images')
     return markup
 
 @bot.message_handler(commands=['start'])
 def start_bot(message):
-    user_sessions[message.chat.id] = {'images': [], 'pdf_file_id': None}
+    user_sessions[message.chat.id] = {'images': [], 'pdf_file_id': None, 'processed_images': []}
     bot.send_message(message.chat.id,
-        "👋 Send images (photo or image document) to create PDF.\n"
-        "Or send a PDF to extract images.\n\n"
+        "👋 Send images (photo or image document) to create PDF or process images.\n"
         "Features:\n"
         "• OCR (extract text from images)\n"
-        "• Simple and AI image upscaling\n",
+        "• Simple and AI image upscaling\n"
+        "• Download processed images\n",
         reply_markup=main_menu()
     )
 
 @bot.message_handler(content_types=['photo', 'document'])
 def handle_files(message):
     cid = message.chat.id
-    session = user_sessions.setdefault(cid, {'images': [], 'pdf_file_id': None})
+    session = user_sessions.setdefault(cid, {'images': [], 'pdf_file_id': None, 'processed_images': []})
 
     if message.content_type == 'photo':
         file_id = message.photo[-1].file_id
@@ -62,7 +63,7 @@ def handle_files(message):
         else:
             bot.send_message(cid, "❗ Please send only JPEG/PNG images or a PDF.")
 
-@bot.message_handler(func=lambda m: m.text == '✅ Done')
+@bot.message_handler(func=lambda m: m.text == '✅ Done (Create PDF)')
 def generate_pdf(message):
     cid = message.chat.id
     session = user_sessions.get(cid)
@@ -99,8 +100,9 @@ def generate_pdf(message):
         bot.send_message(cid, f"❌ Error sending PDF: {e}")
 
     session['images'] = []
+    session['processed_images'] = []
 
-@bot.message_handler(func=lambda m: m.text == '📂 Extract Images')
+@bot.message_handler(func=lambda m: m.text == '📂 Extract Images from PDF')
 def extract_images_from_pdf(message):
     cid = message.chat.id
     session = user_sessions.get(cid)
@@ -131,7 +133,7 @@ def extract_images_from_pdf(message):
     except Exception as e:
         bot.send_message(cid, f"❌ Error: {e}")
 
-@bot.message_handler(func=lambda m: m.text == '📝 Extract Text from Images')
+@bot.message_handler(func=lambda m: m.text == '📝 OCR Images')
 def extract_text_from_images(message):
     cid = message.chat.id
     session = user_sessions.get(cid)
@@ -156,7 +158,7 @@ def extract_text_from_images(message):
     else:
         bot.send_message(cid, "❗ No text found in images.")
 
-@bot.message_handler(func=lambda m: m.text == '🔼 Enhance Images (Simple)')
+@bot.message_handler(func=lambda m: m.text == '🔼 Simple Upscale Images')
 def enhance_images_simple(message):
     cid = message.chat.id
     session = user_sessions.get(cid)
@@ -164,6 +166,7 @@ def enhance_images_simple(message):
         bot.send_message(cid, "❗ No images to enhance.", reply_markup=main_menu())
         return
 
+    session['processed_images'] = []
     for file_id in session['images']:
         file_info = bot.get_file(file_id)
         file_data = bot.download_file(file_info.file_path)
@@ -175,11 +178,13 @@ def enhance_images_simple(message):
             enhanced.save(output, format='JPEG')
             output.seek(0)
             bot.send_photo(cid, output, caption="🔼 Simple 2x Upscaled Image")
+            # Store for download
+            session['processed_images'].append(output.getvalue())
         except Exception as e:
             bot.send_message(cid, f"⚠️ Error enhancing image: {e}")
-    bot.send_message(cid, "✅ All images enhanced! You can now convert them to PDF or extract text.", reply_markup=main_menu())
+    bot.send_message(cid, "✅ All images enhanced!", reply_markup=main_menu())
 
-@bot.message_handler(func=lambda m: m.text == '✨ Enhance Images (AI)')
+@bot.message_handler(func=lambda m: m.text == '✨ AI Upscale Images')
 def enhance_images_ai(message):
     cid = message.chat.id
     session = user_sessions.get(cid)
@@ -189,13 +194,13 @@ def enhance_images_ai(message):
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     try:
-        # Will auto-download weights on first use
         model = RealESRGAN(device, scale=4)
         model.load_weights('RealESRGAN_x4.pth')
     except Exception as e:
         bot.send_message(cid, f"❌ Model load error: {e}")
         return
 
+    session['processed_images'] = []
     for file_id in session['images']:
         file_info = bot.get_file(file_id)
         file_data = bot.download_file(file_info.file_path)
@@ -206,8 +211,25 @@ def enhance_images_ai(message):
             sr_image.save(output, format='JPEG')
             output.seek(0)
             bot.send_photo(cid, output, caption="✨ AI Enhanced (Real-ESRGAN)")
+            # Store for download
+            session['processed_images'].append(output.getvalue())
         except Exception as e:
             bot.send_message(cid, f"⚠️ Error enhancing image: {e}")
     bot.send_message(cid, "✅ All images enhanced with AI!", reply_markup=main_menu())
+
+@bot.message_handler(func=lambda m: m.text == '🖼️ Download Images')
+def download_processed_images(message):
+    cid = message.chat.id
+    session = user_sessions.get(cid)
+    images_bytes = session.get('processed_images', [])
+    if not images_bytes:
+        bot.send_message(cid, "❗ No processed images to download. Use an enhancement feature first.", reply_markup=main_menu())
+        return
+    for idx, img_bytes in enumerate(images_bytes, 1):
+        output = BytesIO(img_bytes)
+        output.seek(0)
+        bot.send_document(cid, InputFile(output, f"processed_{idx}.jpg"))
+    bot.send_message(cid, "✅ All processed images sent as files.", reply_markup=main_menu())
+    session['processed_images'] = []
 
 bot.infinity_polling()
