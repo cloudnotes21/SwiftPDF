@@ -35,7 +35,7 @@ def animate_status(bot, chat_id, text, stop_event):
             bot.edit_message_text(f"{text} {EMOJIS[i % len(EMOJIS)]}", chat_id, msg.message_id)
         except Exception:
             pass  # Ignore edit errors (e.g., message deleted)
-        time.sleep(0.4)
+        time.sleep(0.2)
         i += 1
     return msg
 
