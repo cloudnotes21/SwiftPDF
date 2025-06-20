@@ -8,7 +8,7 @@ import telebot
 from telebot import types
 from telebot.types import InputFile
 
-API_TOKEN = 'YOUR_BOT_TOKEN'  # ← apna Telegram bot token yahan daalein
+API_TOKEN = '8047121156:AAERsQie1NWmWw3VAlQVMZ0WZz4nDrJ5S8I'  # ← apna Telegram bot token yahan daalein
 bot = telebot.TeleBot(API_TOKEN)
 user_sessions = {}
 
